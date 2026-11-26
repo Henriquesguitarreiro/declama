@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000"><title>Declama</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#000;color:#fff;font:16px system-ui;min-height:100dvh;padding: max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:10px}header,footer{display:flex;flex-wrap:wrap;gap:8px;align-items:center}button{background:#292929;color:white;border:1px solid #666;border-radius:10px;padding:10px;font:inherit}textarea{width:100%;min-height:140px;background:#171717;color:white;font:inherit}main{flex:1;display:grid;place-items:center;min-height:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;line-height:1.2;font-family:inherit;font-weight:600;max-width:100%}#status{color:#a9d9b9}#heard{color:#aaa;font-size:12px}
+</style></head><body>
+<header><b>DECLAMA 1.1</b><span id="count"></span><span id="status" role="status">Manual</span></header>
+<section id="editor" hidden><textarea id="text" aria-label="Poema"></textarea><button id="load">Carregar poema</button><button id="default">Restaurar Depois do Combate</button></section>
+<main><pre id="poem"></pre></main><div id="heard"></div>
+<footer><button id="prev">◀</button><button id="start">🎙 Iniciar</button><button id="next">▶</button><button id="reset">Reiniciar</button><button id="edit">Editar poema</button><label>Fonte <input id="font" type="range" min="60" max="120" value="100"></label></footer>
+<script>
+const DEFAULT="Estou salivando os restos,\nRubro, tinto, escorrido,\nOnde absorvo aos poucos\nO gosto estranho da morte…\nLombo riscado, pataleio,\nAs leivas e as feridas\nNem parecem doloridas,\nPelo calor da fumaça.\n\nRetumbam da cavalhada,\nAssombros batendo cascos,\nDesnorteio com estrondos\nDeixados pelos canhões.\nSou o catre dos valentes\nEternizados de glória,\nDa peleia, na memória,\nPelos lados diferentes.\n\nO arvoredo espiando,\nArisco arrasta a melena\nDo galhedo esvoaçante,\nEcoa dos comandantes\nGritos de avanço, de carga,\nlembranças do que foi berro\nE agora no silêncio,\nNada mais é como antes.\n\nO Arroio bate nas pedras\nSuas águas com cor de vinho.\nAs macegas com respingos,\nJuntam tintas da degola…\nMe deixam de testemunha,\nPor penitência sem fim,\nPra eu carregar no meu lombo,\nFardos que lutam por mim.\n\nNa geografia das guerras,\nSou a terra do combate,\nSalivando, salivando,\nO gosto estranho da morte.\nDe mim não tiram partido,\nSe sou dum lado ou de outro,\nApenas me fazem campo,\nDas pelejas por direito.\n\nDe mim nunca questionaram,\nDe mim nunca sucumbiram,\nPor mim adaga e garrucha,\nPor mim clamam liberdade,\nPor mim se apotram os velhos,\nEm mim boleiam-se potros,\nEm mim o pouco renasce\nEnraizado no medo.\n\nSerá que reside a glória,\nNas plagas onde me visto?\nIrão tirar do meu colo\nAs tropas desfalecidas?\nAbrigarei os reiúnos?\nQuestiono-me, questiono-me…\nO que será que sobra\nPra terra após a batalha.\n\nSerá sempre assim,\nOs homens e seus propósitos,\nSeus egos e valentias,\nSeus confrontos e ideais.\nResta pra mim ser o palco,\nRenegado, entristecido,\nSalivando, salivando\nO gosto estranho da morte.\n\nMe mostraram os tiranos,\nVigaristas e pagãos,\nCom a cara nos meus braços,\nOnde embalei-os sem vida,\nMe ensurdeceram fuzis\nE me queimei nos cartuchos,\nE me pisaram vitórias\nDos que se acharam heróis…\n\nEu hei de herdar estas almas\nPenadas e repreendidas,\nQue hoje olham a carne\nSem motivos de partir.\nVagarão nos descampados,\nRangerão tronco de matos,\nTal como rangessem os dentes,\nFuriosos de aceitação.\n\nEssa foi uma das tantas,\nGuerras de trono e interesse,\nSempre haverá uma ou outra\nIndependente do tempo.\nSempre haverão vencedores,\nPerdedores deitarão.\nE eu, por terra, irei vendo,\nA queda de dois irmãos.\n\nSe acaso restar a fé\nNo pranto da chuva forte,\nHá de lavar pesadelos\nPelas frestas do meu corpo.\nCorpo este em cicatrizes,\nQue em livros se escora,\nA mostrar pra juventude\nMeu nome preso na história.\n\nMas caso reste o terror,\nA pólvora, o tropel,\nE a sombra do troféu\nNa mão de algum general,\nNo sopro de algum clarim,\nHão de obrigar-me a ser chão,\nSustentando no meu lombo\nFardos que lutam por mim.\n\nSerei eu a cancha,\nA várzea dos pelotões,\nA grota destas tocaias…\nSerei eu os olhos\nChorados de sangue,\nCom lágrimas até a boca,\nSalivando e salivando\nO gosto estranho da morte.";
+const $=id=>document.getElementById(id);
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean);
+let verses=[],i=0,active=false,rec=null,epoch=0,timer=null,buffer=[],wake=null;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function matches(stanza,words){
+ const target=norm(stanza.split('\n').slice(-2).join(' ')).slice(-10);
+ if(!target.length)return false;
+ const tail=words.slice(-target.length-3);
+ const end=target.slice(-Math.min(3,target.length));
+ if(tail.slice(-end.length).join(' ')!==end.join(' '))return false;
+ let j=0;
+ for(const w of tail){if(w===target[j])j++;else if(j+1<target.length&&w===target[j+1])j+=2;}
+ return j===target.length;
+}
+function fit(){const p=$('poem'),m=p.parentElement,c=document.createElement('canvas').getContext('2d');let n=Math.min(90,Math.max(16,(innerHeight-$('status').parentElement.offsetHeight-document.querySelector('footer').offsetHeight-75)/(verses[i].split('\n').length*1.2)));c.font='600 '+n+'px system-ui';const w=Math.max(1,...verses[i].split('\n').map(x=>c.measureText(x).width));p.style.fontSize=Math.max(14,Math.min(n,n*(m.clientWidth-8)/w)*Number($('font').value)/100)+'px'}
+function show(){buffer=[];$('poem').textContent=verses[i];$('count').textContent=(i+1)+' / '+verses.length;$('heard').textContent='';$('prev').disabled=i===0;$('next').disabled=i===verses.length-1;fit()}
+function cancelSession(){epoch++;clearTimeout(timer);timer=null;const old=rec;rec=null;if(old)try{old.abort()}catch{}}
+function stop(msg='Modo manual'){active=false;cancelSession();$('start').textContent='🎙 Iniciar';$('status').textContent=msg;if(wake){wake.release().catch(()=>{});wake=null}}
+async function lock(){if(wake&&!wake.released)return;try{const w=await navigator.wakeLock.request('screen');if(active)wake=w;else await w.release()}catch{}}
+function schedule(){const token=epoch;clearTimeout(timer);timer=setTimeout(()=>{if(active&&epoch===token)listen()},450)}
+function move(d){const next=Math.max(0,Math.min(verses.length-1,i+d));if(next===i)return;i=next;show();if(active){cancelSession();schedule()}}
+function listen(){if(!active)return;const token=++epoch;const r=new SR();rec=r;r.lang='pt-BR';r.continuous=true;r.interimResults=false;const valid=()=>active&&epoch===token&&rec===r;
+r.onstart=()=>{if(valid())$('status').textContent='Escutando…'};
+r.onresult=e=>{if(!valid())return;for(let k=e.resultIndex;k<e.results.length;k++){if(!e.results[k].isFinal)continue;buffer.push(...norm(e.results[k][0].transcript));buffer=buffer.slice(-60);$('heard').textContent=buffer.slice(-12).join(' ');if(matches(verses[i],buffer)){if(i===verses.length-1)stop('Poema concluído');else move(1);return}}};
+r.onerror=e=>{if(!valid())return;if(e.error==='no-speech'){$('status').textContent='Aguardando voz…';return}stop('Voz indisponível: '+e.error)};
+r.onend=()=>{if(valid()){rec=null;$('status').textContent='Retomando microfone…';schedule()}};
+try{r.start()}catch{stop('Toque em Iniciar para retomar')}
+}
+function load(t){const v=t.trim().split(/\r?\n[ \t]*\r?\n(?:[ \t]*\r?\n)*/).map(x=>x.trim()).filter(Boolean);if(!v.length)return;stop();verses=v;i=0;$('text').value=t;try{localStorage.setItem('declama.poem',t)}catch{}$('editor').hidden=true;show()}
+$('start').onclick=()=>{if(active)return stop();if(!SR)return stop('Reconhecimento indisponível; use Safari ou modo manual');if(!isSecureContext)return stop('Abra via HTTPS');active=true;$('start').textContent='Pausar';listen();lock()};
+$('prev').onclick=()=>move(-1);$('next').onclick=()=>move(1);$('reset').onclick=()=>{stop();i=0;show()};$('edit').onclick=()=>{stop();$('editor').hidden=!$('editor').hidden};$('load').onclick=()=>load($('text').value);$('default').onclick=()=>load(DEFAULT);$('font').oninput=fit;addEventListener('resize',fit);document.addEventListener('visibilitychange',()=>{if(document.hidden&&active)stop('Microfone pausado; toque em Iniciar');else if(active)lock()});
+let saved='';try{saved=localStorage.getItem('declama.poem')||''}catch{}load(saved||DEFAULT);
+</script></body></html>
